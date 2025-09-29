@@ -2,6 +2,7 @@
 ### Oxyde Retro Technology  
 
 Oxyde RT is a **branch of the Oxyde desktop environment** with a nostalgic twist—bringing back the **retro feel of early 2000s operating systems** without being Windows XP itself.  
+This will serve as the front end for an upcoming new Linux flavor. 
 
 ---
 
