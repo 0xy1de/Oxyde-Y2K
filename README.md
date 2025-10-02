@@ -1,7 +1,7 @@
-# Oxyde RT  
+# Oxyde Y2k
 ### Oxyde Retro Technology  
 
-Oxyde RT is a **branch of the Oxyde desktop environment** with a nostalgic twist—bringing back the **retro feel of early 2000s operating systems** without being Windows XP itself.  
+Oxyde Y2k is a desktop environment with a nostalgic twist—bringing back the **retro feel of early 2000s operating systems** without being Windows itself.  
 This will serve as the front end for an upcoming new Linux flavor. 
 
 ---
@@ -24,12 +24,20 @@ This will serve as the front end for an upcoming new Linux flavor.
 ## 📅 Planned Features
 - System Settings Manager  
 - Resource Monitor  
-- Additional lightweight system apps  
+- Additional lightweight system apps
+- Integrated File Manager
+- Theme switcher between Glass and No Glass
+- Custom Desktop Icons
+- Custom System Tray Icons
 
 ---
 
 ## Current Progress as of 09/26/2025:
-Still Have A Lot to do.....
+- Mostly functional taskbar
+- Functioning `start` button
+- Functioning clock
+- Start Menu template outlined
+Still Have A Lot more to do.....
 
 ![Screenshot](assets/progress.png)
 
