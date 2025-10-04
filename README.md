@@ -113,8 +113,8 @@ In `Sway` session:
 
    `Ctrl+C`
 
- # Alacritty window manager test:
-
+ # Window manager test:
+  Alacritty:
    ```bash
    WAYLAND_DISPLAY="wayland-1" alacritty &
    ```
