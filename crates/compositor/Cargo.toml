@@ -17,8 +17,8 @@ oxyde_launcher  = { path = "../launcher" }
 oxyde_expose    = { path = "../expose" }
 oxyde_dock      = { path = "../dock" }
 
-smithay = { version = "0.7", features = ["backend_winit", "use_system_lib"] }
-calloop = "0.12"
+smithay = { version = "0.7", features = ["backend_winit", "use_system_lib"], default-features = true }
+calloop = "0.14"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 anyhow = "1"
