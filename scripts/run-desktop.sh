@@ -1,10 +1,14 @@
+# SPDX-FileCopyrightText: 2025 2025 Oxyde Contributors
+#
+# SPDX-License-Identifier: MPL-2.0
+
 #!/usr/bin/env bash
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 SOCKET="$RUNTIME_DIR/wayland-1"
-COMPOSITOR_MANIFEST="$ROOT/oxyde/crates/compositor/Cargo.toml"
+COMPOSITOR_MANIFEST="$ROOT/crates/compositor/Cargo.toml"
 
 echo "[1/3] Building compositor…"
 cargo build --manifest-path "$COMPOSITOR_MANIFEST" --quiet
