@@ -1,29 +1,32 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use calloop::{EventLoop, LoopSignal};
+use calloop::timer::{Timer, TimeoutAction};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 use smithay::{
-    output::{Mode, Output, PhysicalProperties, Scale, Subpixel},
+    output::{Mode as OutputMode, Output, PhysicalProperties, Scale, Subpixel},
     reexports::wayland_server::{
         backend::{ClientData, ClientId, DisconnectReason},
-        protocol::{wl_buffer::WlBuffer, wl_output::WlOutput, wl_seat::WlSeat, wl_shm, wl_surface::WlSurface},
+        protocol::{
+            wl_buffer::WlBuffer, wl_output::WlOutput, wl_seat::WlSeat, wl_shm, wl_surface::WlSurface,
+        },
         Display, DisplayHandle,
     },
-    utils::{Transform, Serial},
+    utils::{Serial, Transform},
     input::{Seat, SeatHandler, SeatState},
     input::pointer::CursorImageStatus,
     wayland::{
-        compositor::{CompositorClientState, CompositorHandler, CompositorState},
         buffer::BufferHandler,
-        shm::{ShmHandler, ShmState},
-        shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
-        shell::wlr_layer::{Layer, LayerSurface, WlrLayerShellHandler, WlrLayerShellState},
+        compositor::{CompositorClientState, CompositorHandler, CompositorState},
         output::OutputHandler,
+        shell::wlr_layer::{Layer, LayerSurface, WlrLayerShellHandler, WlrLayerShellState},
+        shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
+        shm::{ShmHandler, ShmState},
         socket::ListeningSocketSource,
     },
 };
@@ -68,16 +71,19 @@ impl OxydeState {
         let output = Output::new(
             "oxyde-virtual".into(),
             PhysicalProperties {
-                size: (200, 120).into(), // mm (fake)
+                size: (200, 120).into(),
                 subpixel: Subpixel::Unknown,
                 make: "Oxyde".into(),
                 model: "Virtual".into(),
             },
         );
         let _ = output.create_global::<Self>(&dh);
-        let pref_mode = Mode { size: (1280, 800).into(), refresh: 60_000 };
 
-        // ORDER in 0.7: mode, transform, scale, location
+        let pref_mode = OutputMode {
+            size: (1280, 800).into(),
+            refresh: 60_000,
+        };
+        // ORDER in 0.7: (mode, transform, scale, location)
         output.change_current_state(
             Some(pref_mode.clone()),
             Some(Transform::Normal),
@@ -159,8 +165,8 @@ smithay::delegate_layer_shell!(OxydeState);
 
 impl SeatHandler for OxydeState {
     type KeyboardFocus = WlSurface;
-    type PointerFocus  = WlSurface;
-    type TouchFocus    = WlSurface;
+    type PointerFocus = WlSurface;
+    type TouchFocus = WlSurface;
 
     fn seat_state(&mut self) -> &mut SeatState<Self> {
         &mut self.seat_state
@@ -193,30 +199,56 @@ fn main() -> Result<()> {
     oxyde_expose::init();
     oxyde_dock::init();
 
+    // Display first (so it outlives callbacks)
+    let display_rc: Rc<RefCell<Display<OxydeState>>> = Rc::new(RefCell::new(Display::new()?));
+
     let mut event_loop: EventLoop<OxydeState> = EventLoop::try_new()?;
     let signal = event_loop.get_signal();
-    let mut display: Display<OxydeState> = Display::new()?;
 
-    let mut state = OxydeState::new(&mut display, signal)?;
+    // Build compositor state
+    let mut state = {
+        let mut d = display_rc.borrow_mut();
+        OxydeState::new(&mut d, signal)?
+    };
 
-    // Open wayland-1 and accept clients (calloop 0.14 source)
+    // Accept new connections on wayland-1
     let wl_source = ListeningSocketSource::with_name("wayland-1")?;
-    let mut dh = display.handle();
-    event_loop.handle().insert_source(wl_source, move |stream, _, _state: &mut OxydeState| {
-        if let Err(err) = dh.insert_client(
-            stream,
-            Arc::new(ClientState { compositor_state: CompositorClientState::default() }),
-        ) {
-            error!("Failed to insert Wayland client: {err:?}");
-        }
-    })?;
+    let mut dh = display_rc.borrow().handle();
+    event_loop
+        .handle()
+        .insert_source(wl_source, move |stream, _, _state: &mut OxydeState| {
+            if let Err(err) = dh.insert_client(
+                stream,
+                Arc::new(ClientState {
+                    compositor_state: CompositorClientState::default(),
+                }),
+            ) {
+                error!("Failed to insert Wayland client: {err:?}");
+            }
+        })?;
 
-    // Flush clients each loop tick (returns a handle, no `?`)
-    let _idle = event_loop.handle().insert_idle(|st: &mut OxydeState| {
+    // Drive Wayland with a tiny periodic timer (dispatch -> flush)
+let display_for_cb = Rc::clone(&display_rc);
+
+// Fire immediately once, then reschedule every 5ms via the return value:
+let timer = calloop::timer::Timer::immediate();
+
+let insert_res = event_loop
+    .handle()
+    .insert_source(timer, move |_, _, st: &mut OxydeState| {
+        if let Err(err) = display_for_cb.borrow_mut().dispatch_clients(st) {
+            error!("dispatch_clients error: {err:?}");
+        }
         if let Err(err) = st.dh.flush_clients() {
             error!("flush_clients error: {err:?}");
         }
+        calloop::timer::TimeoutAction::ToDuration(std::time::Duration::from_millis(5))
     });
+
+// Don’t use `?` here; map to a plain anyhow error instead
+if let Err(_e) = insert_res {
+    return Err(anyhow::anyhow!("failed to insert timer source"));
+}
 
     info!("Wayland up on WAYLAND_DISPLAY=wayland-1");
     info!("Launch your bar with:  WAYLAND_DISPLAY=wayland-1 ./taskbar/bar_y2k");
