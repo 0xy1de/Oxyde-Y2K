@@ -9,6 +9,6 @@ members = [
   "crates/oxymenu",
   "crates/oxynotify",
   "crates/oxyconfig",
-  "crates/theming",
+  "crates/theming", 
 ]
 resolver = "2"
